@@ -56,10 +56,16 @@ include_directories(
     ${CMAKE_BINARY_DIR}/src
     ${CMAKE_SOURCE_DIR}/src
     ${CMAKE_CURRENT_BINARY_DIR}
+)
+
+include_directories(
+    SYSTEM
     ${Boost_INCLUDE_DIRS}
-    ${PYTHON_INCLUDE_DIRS}
+    ${PYCXX_INCLUDE_DIR}
+    ${Python3_INCLUDE_DIRS}
     ${XercesC_INCLUDE_DIRS}
     ${ZLIB_INCLUDE_DIR}
+    ${ZIPIOS_INCLUDES}
 )
 
 set(FreeCADApp_LIBS
@@ -99,8 +105,8 @@ generate_from_xml(PropertyContainerPy)
 generate_from_xml(MaterialPy)
 generate_from_xml(MeasureManagerPy)
 
-generate_from_py(FreeCADInit InitScript.h)
-generate_from_py(FreeCADTest TestScript.h)
+generate_embed_from_py(FreeCADInit InitScript.h)
+generate_embed_from_py(FreeCADTest TestScript.h)
 
 SET(FreeCADApp_XML_SRCS
     ExtensionPy.xml
