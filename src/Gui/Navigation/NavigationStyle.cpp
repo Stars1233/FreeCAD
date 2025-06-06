@@ -319,10 +319,10 @@ NavigationStyle::~NavigationStyle()
     finalize();
     delete this->animator;
 
-    if (pythonObject) {
+    if (!pythonObject.is(nullptr)) {
         Base::PyGILStateLocker lock;
-        Py_DECREF(pythonObject);
-        pythonObject = nullptr;
+        Base::PyObjectBase* obj = static_cast<Base::PyObjectBase*>(pythonObject.ptr());
+        obj->setInvalid();
     }
 }
 
@@ -700,6 +700,19 @@ void NavigationStyle::reorientCamera(SoCamera* camera, const SbRotation& rotatio
     // Reposition camera so the rotation center stays in the same place
     camera->position = rotationCenter + newRotationCenterDistance;
 
+    if (camera->getTypeId().isDerivedFrom(SoOrthographicCamera::getClassTypeId())) {
+        // Adjust the camera position to keep the focal point in the same place while making sure
+        // the focal distance stays small. This increases rotation stability for small and large
+        // scenes
+
+        SbVec3f direction;
+        camera->orientation.getValue().multVec(SbVec3f(0, 0, -1), direction);
+        
+        constexpr float orthographicFocalDistance = 1;
+        camera->position = getFocalPoint() - orthographicFocalDistance * direction;
+        camera->focalDistance = orthographicFocalDistance;
+    }
+    
 #if (COIN_MAJOR_VERSION * 100 + COIN_MINOR_VERSION * 10 + COIN_MICRO_VERSION < 403)
     // Fix issue with near clipping in orthogonal view
     if (camera->getTypeId().isDerivedFrom(SoOrthographicCamera::getClassTypeId())) {
@@ -1914,11 +1927,11 @@ void NavigationStyle::openPopupMenu(const SbVec2s& position)
 
 PyObject* NavigationStyle::getPyObject()
 {
-    if (!pythonObject)
-        pythonObject = new NavigationStylePy(this);
-
-    Py_INCREF(pythonObject);
-    return pythonObject;
+    if (pythonObject.is(nullptr)) {
+        // ref counter is set to 1
+        pythonObject = Py::asObject(new NavigationStylePy(this));
+    }
+    return Py::new_reference_to(pythonObject);
 }
 
 // ----------------------------------------------------------------------------------
