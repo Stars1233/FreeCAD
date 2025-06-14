@@ -107,37 +107,42 @@ void PropertyItemDelegate::paint(QPainter *painter, const QStyleOptionViewItem &
 
     if (index.column() == 1 && property && dynamic_cast<PropertyBoolItem*>(property)) {
         bool checked = index.data(Qt::EditRole).toBool();
+        bool readonly = property->isReadOnly();
+
+        QStyle* style = option.widget ? option.widget->style() : QApplication::style();
+        QPalette palette = option.widget ? option.widget->palette() : QApplication::palette();
+
         QStyleOptionButton checkboxOption;
-        if (property->isReadOnly()) {
-            checkboxOption.state |= QStyle::State_ReadOnly;
-        } else {
-            checkboxOption.state |= QStyle::State_Enabled;
-        }
+
+        checkboxOption.state |= readonly ? QStyle::State_ReadOnly : QStyle::State_Enabled;
         checkboxOption.state |= checked ? QStyle::State_On : QStyle::State_Off;
+
+        // draw the item (background etc.)
+        style->drawPrimitive(QStyle::PE_PanelItemViewItem, &option, painter, option.widget);
+
         // Draw the checkbox
-        checkboxOption.rect = QApplication::style()->subElementRect(QStyle::SE_CheckBoxIndicator, &checkboxOption);
-        int leftSpacing = QApplication::style()->pixelMetric(QStyle::PM_FocusFrameHMargin, nullptr);
+        checkboxOption.rect = style->subElementRect(QStyle::SE_CheckBoxIndicator, &checkboxOption, option.widget);
+        int leftSpacing = style->pixelMetric(QStyle::PM_FocusFrameHMargin, nullptr, option.widget);
+
         QRect checkboxRect = QStyle::alignedRect(
             option.direction, Qt::AlignVCenter,
             checkboxOption.rect.size(),
             option.rect.adjusted(leftSpacing, 0, -leftSpacing, 0)
         );
         checkboxOption.rect = checkboxRect;
-        QApplication::style()->drawPrimitive(QStyle::PE_IndicatorCheckBox, &checkboxOption, painter);
-        // Draw a bright border on the checkbox to stand out
-        QColor borderColor = QApplication::palette().color(QPalette::BrightText);
-        painter->setPen(borderColor);
-        painter->drawRect(checkboxOption.rect.adjusted(0, 0, -1, -1));
+
+        style->drawPrimitive(QStyle::PE_IndicatorCheckBox, &checkboxOption, painter, option.widget);
+
         // Draw the label of the checkbox
         QString labelText = checked ? tr("Yes") : tr("No");
-        int spacing = QApplication::style()->pixelMetric(QStyle::PM_CheckBoxLabelSpacing, nullptr);
+        int spacing = style->pixelMetric(QStyle::PM_CheckBoxLabelSpacing, nullptr, option.widget);
         QRect textRect(
             checkboxOption.rect.right() + spacing,
             checkboxOption.rect.top(),
             option.rect.right() - (checkboxOption.rect.right() + spacing),
             checkboxOption.rect.height()
         );
-        painter->setPen(option.palette.color(QPalette::Text));
+        painter->setPen(palette.color(QPalette::Text));
         painter->drawText(textRect, Qt::AlignVCenter | Qt::AlignLeft, labelText);
     }
     else {
@@ -158,10 +163,13 @@ void PropertyItemDelegate::paint(QPainter *painter, const QStyleOptionViewItem &
 bool PropertyItemDelegate::editorEvent (QEvent * event, QAbstractItemModel* model,
                                         const QStyleOptionViewItem& option, const QModelIndex& index)
 {
-    if (event && event->type() == QEvent::MouseButtonPress)
-        this->pressed = true;
-    else
-        this->pressed = false;
+    if (!event || event->type() == QEvent::MouseButtonDblClick) {
+        // ignore double click, as it could cause editor lock with checkboxes
+        // due to the editor being close immediately after toggling the checkbox
+        // which is currently done on first click
+        return true;
+    }
+    this->pressed = event->type() == QEvent::MouseButtonPress;
     return QItemDelegate::editorEvent(event, model, option, index);
 }
 
